@@ -41,6 +41,14 @@
 
 #include "mt6358.h"
 
+#if defined(CONFIG_SND_SOC_FS18XX)
+#include "../mediatek/fs1815n/fsm_public.h"
+#endif
+
+#if defined(CONFIG_SND_SOC_AW87XXX)
+extern int aw87xxx_add_codec_controls(void *codec);
+#endif
+
 enum {
 	AUDIO_ANALOG_VOLUME_HSOUTL,
 	AUDIO_ANALOG_VOLUME_HSOUTR,
@@ -7258,6 +7266,18 @@ static int mt6358_codec_probe(struct snd_soc_component *cmpnt)
 				       ARRAY_SIZE(mt6358_snd_vow_controls));
 
 	mt6358_codec_init_reg(priv);
+
+#if defined(CONFIG_SND_SOC_FS18XX)
+	fsm_add_codec_controls(cmpnt);
+#endif
+
+#if defined(CONFIG_SND_SOC_AW87XXX)
+	{
+		int aw_ret = aw87xxx_add_codec_controls(cmpnt);
+		if (aw_ret < 0)
+			dev_err(priv->dev, "aw87xxx_add_codec_controls failed, ret=%d\n", aw_ret);
+	}
+#endif
 
 	priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTL] = 8;
 	priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTR] = 8;
