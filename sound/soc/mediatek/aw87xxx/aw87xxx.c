@@ -934,6 +934,18 @@ static void aw87xxx_fw_load(const struct firmware *fw, void *context)
 	AW_DEV_LOGD(aw87xxx->dev, "enter");
 
 	if (!fw) {
+		mutex_lock(&aw87xxx->reg_lock);
+		ret = aw87xxx_legacy_bin_load(aw87xxx->dev, acf_info);
+		if (ret == 0) {
+			ret = aw87xxx_init_default_prof(aw87xxx);
+			if (ret == 0) {
+				AW_DEV_LOGI(aw87xxx->dev, "legacy bin profiles loaded & initialized successfully");
+				mutex_unlock(&aw87xxx->reg_lock);
+				return;
+			}
+		}
+		mutex_unlock(&aw87xxx->reg_lock);
+
 		aw87xxx_fw_load_retry(aw87xxx);
 		return;
 	}

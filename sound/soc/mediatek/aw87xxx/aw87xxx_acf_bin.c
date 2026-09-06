@@ -1556,3 +1556,76 @@ void aw87xxx_acf_init(struct aw_device *aw_dev, struct acf_bin_info *acf_info, i
 	acf_info->fw_size = 0;
 }
 
+int aw87xxx_legacy_bin_load(struct device *dev, struct acf_bin_info *acf_info)
+{
+	const struct firmware *fw = NULL;
+	char fw_name[64];
+	const char *scenes[] = { "off", "music", "voice", "fm", "rcv" };
+	const char *prof_names[] = { "Off", "Music", "Voice", "Fm", "Receiver" };
+	int i, ret, loaded_cnt = 0;
+	struct aw_prof_info *prof_info = &acf_info->prof_info;
+	char chan_sfx[4] = {0};
+
+	if (acf_info->dev_index == 0)
+		snprintf(chan_sfx, sizeof(chan_sfx), "_l");
+	else if (acf_info->dev_index == 1)
+		snprintf(chan_sfx, sizeof(chan_sfx), "_r");
+
+	prof_info->prof_desc = devm_kzalloc(dev, sizeof(struct aw_prof_desc) * ARRAY_SIZE(scenes), GFP_KERNEL);
+	if (!prof_info->prof_desc)
+		return -ENOMEM;
+
+	prof_info->prof_name_list = devm_kzalloc(dev, sizeof(char [AW_PROFILE_STR_MAX]) * ARRAY_SIZE(scenes), GFP_KERNEL);
+	if (!prof_info->prof_name_list)
+		return -ENOMEM;
+
+	for (i = 0; i < ARRAY_SIZE(scenes); i++) {
+		snprintf(fw_name, sizeof(fw_name), "aw87559_pid_%02x_%s%s.bin",
+				acf_info->aw_dev->chipid, scenes[i], chan_sfx);
+		ret = request_firmware(&fw, fw_name, dev);
+		if (ret < 0) {
+			snprintf(fw_name, sizeof(fw_name), "aw87559_pid_%02x_%s_.bin",
+					acf_info->aw_dev->chipid, scenes[i]);
+			ret = request_firmware(&fw, fw_name, dev);
+		}
+		if (ret < 0 && acf_info->aw_dev->chipid == 0x59) { /* aw87519 */
+			if (!strcmp(scenes[i], "music"))
+				snprintf(fw_name, sizeof(fw_name), "aw87519_kspk.bin");
+			else if (!strcmp(scenes[i], "rcv"))
+				snprintf(fw_name, sizeof(fw_name), "aw87519_drcv.bin");
+			else
+				fw_name[0] = '\0';
+
+			if (fw_name[0])
+				ret = request_firmware(&fw, fw_name, dev);
+		}
+
+		if (ret == 0 && fw) {
+			uint8_t *copy_data = devm_kzalloc(dev, fw->size, GFP_KERNEL);
+			if (copy_data) {
+				memcpy(copy_data, fw->data, fw->size);
+				aw_parse_reg_with_hdr(dev, copy_data, fw->size, &prof_info->prof_desc[loaded_cnt]);
+				if (!prof_info->prof_desc[loaded_cnt].prof_st) {
+					prof_info->prof_desc[loaded_cnt].data_container.data = copy_data;
+					prof_info->prof_desc[loaded_cnt].data_container.len = fw->size;
+					prof_info->prof_desc[loaded_cnt].prof_st = AW_PROFILE_OK;
+				}
+				prof_info->prof_desc[loaded_cnt].prof_name = prof_info->prof_name_list[loaded_cnt];
+				snprintf(prof_info->prof_name_list[loaded_cnt], AW_PROFILE_STR_MAX, "%s", prof_names[i]);
+				loaded_cnt++;
+			}
+			release_firmware(fw);
+			fw = NULL;
+		}
+	}
+
+	if (loaded_cnt > 0) {
+		prof_info->count = loaded_cnt;
+		prof_info->status = AW_ACF_OK;
+		AW_DEV_LOGI(dev, "loaded %d legacy bin profiles successfully", loaded_cnt);
+		return 0;
+	}
+
+	return -ENOENT;
+}
+
