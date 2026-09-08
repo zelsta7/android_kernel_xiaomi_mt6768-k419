@@ -40,3 +40,4 @@ CONFIG_LOCALVERSION="-LittleSpammyMailman-v0.1-bringup-pre"
 # tum tcpc alt sistemi derlenmiyor, port yonetilmiyor, sarj gorusmesi olmuyor.
 CONFIG_TCPC_CLASS=y
 CONFIG_TCPC_WUSB3801=y
+# CONFIG_COMPAT_VDSO is not set
